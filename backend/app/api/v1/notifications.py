@@ -36,8 +36,8 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
+    async def connect(self, user_id: str, websocket: WebSocket, subprotocol: str | None = None):
+        await websocket.accept(subprotocol=subprotocol)
         if user_id not in self.active_connections:
             self.active_connections[user_id] = []
         self.active_connections[user_id].append(websocket)
@@ -70,10 +70,17 @@ manager = ConnectionManager()
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time notifications.
-    Connection: ws://host/api/v1/notifications/ws?token=<jwt>
+    Connection: ws://host/api/v1/notifications/ws
+    JWT token passed via Sec-WebSocket-Protocol header (not query param).
     """
+    # Extract JWT from Sec-WebSocket-Protocol header instead of query string
+    token = websocket.headers.get("sec-websocket-protocol")
+    if not token:
+        await websocket.close(code=4001)
+        return
+
     try:
         payload = decode_access_token(token)
         user_id = payload.get("sub")
@@ -84,7 +91,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
         await websocket.close(code=4001)
         return
 
-    await manager.connect(user_id, websocket)
+    await manager.connect(user_id, websocket, subprotocol=token)
     try:
         while True:
             data = await websocket.receive_text()

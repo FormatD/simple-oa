@@ -37,7 +37,9 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 async def _get_task_or_404(db: AsyncSession, task_id: uuid.UUID, org_id: uuid.UUID) -> Task:
     result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.organization_id == org_id, Task.deleted_at.is_(None))
+        select(Task).options(
+            selectinload(Task.assigner), selectinload(Task.assignee)
+        ).where(Task.id == task_id, Task.organization_id == org_id, Task.deleted_at.is_(None))
     )
     task = result.scalar_one_or_none()
     if not task:
@@ -476,7 +478,9 @@ async def list_subtasks(
     await _get_task_or_404(db, task_id, member.organization_id)
 
     result = await db.execute(
-        select(TaskSubtask).where(TaskSubtask.task_id == task_id).order_by(TaskSubtask.sort_order)
+        select(TaskSubtask).options(
+            selectinload(TaskSubtask.assignee)
+        ).where(TaskSubtask.task_id == task_id).order_by(TaskSubtask.sort_order)
     )
     subtasks = result.scalars().all()
     return APIResponse(data=[_subtask_to_response(s) for s in subtasks])
@@ -628,7 +632,9 @@ async def update_comment(
 ):
     """Edit a comment."""
     result = await db.execute(
-        select(TaskComment).where(
+        select(TaskComment).options(
+            selectinload(TaskComment.author)
+        ).where(
             TaskComment.id == comment_id,
             TaskComment.task_id == task_id,
             TaskComment.author_id == current_user.id,
@@ -652,7 +658,9 @@ async def delete_comment(
 ):
     """Soft-delete a comment."""
     result = await db.execute(
-        select(TaskComment).where(
+        select(TaskComment).options(
+            selectinload(TaskComment.author)
+        ).where(
             TaskComment.id == comment_id,
             TaskComment.task_id == task_id,
             TaskComment.author_id == current_user.id,

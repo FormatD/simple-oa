@@ -22,7 +22,6 @@ from app.schemas.wiki import (
     WikiPageResponse,
     WikiPageUpdate,
     WikiPageVersionResponse,
-    WikiPageVersionResponse,
 )
 
 router = APIRouter(prefix="/wiki", tags=["wiki"])
@@ -113,11 +112,24 @@ async def list_folders(
     )
     folders = result.scalars().all()
 
+    # Get page counts for all folders in one query (fix N+1)
+    page_counts: dict[str, int] = {}
+    if folders:
+        count_result = await db.execute(
+            select(WikiPage.folder_id, func.count().label("cnt"))
+            .where(
+                WikiPage.folder_id.in_([f.id for f in folders]),
+                WikiPage.deleted_at.is_(None),
+            )
+            .group_by(WikiPage.folder_id)
+        )
+        for row in count_result.all():
+            page_counts[str(row.folder_id)] = row.cnt
+
     # Build tree
     folder_map = {}
     for f in folders:
-        page_count = await _get_folder_page_count(db, f.id)
-        folder_map[str(f.id)] = _folder_to_response(f, children=[], page_count=page_count)
+        folder_map[str(f.id)] = _folder_to_response(f, children=[], page_count=page_counts.get(str(f.id), 0))
 
     tree = []
     for f in folders:
@@ -226,6 +238,43 @@ async def create_page(
     db.add(page)
     await db.flush()
     return APIResponse(data=_page_to_response(page))
+
+
+@router.get("/pages", response_model=APIResponse)
+async def list_pages(
+    folder_id: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List wiki pages with optional folder filter and pagination."""
+    org_id = await _get_org_id(current_user, db)
+
+    query = select(WikiPage).options(
+        selectinload(WikiPage.creator), selectinload(WikiPage.editor)
+    ).where(
+        WikiPage.organization_id == org_id,
+        WikiPage.deleted_at.is_(None),
+    )
+
+    if folder_id:
+        query = query.where(WikiPage.folder_id == uuid.UUID(folder_id))
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    query = query.order_by(WikiPage.updated_at.desc())
+    query = query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(query)
+    pages = result.scalars().all()
+
+    return APIResponse(
+        data=[_page_to_response(p) for p in pages],
+        pagination={"page": page, "page_size": page_size, "total": total},
+    )
 
 
 @router.get("/pages/{page_id}", response_model=APIResponse)
