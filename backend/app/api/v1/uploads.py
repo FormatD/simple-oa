@@ -58,10 +58,11 @@ async def upload_file(
     if not member:
         raise HTTPException(400, "Not a member of any organization")
 
-    # Validate file size (50MB max)
+    # Validate file size (50MB max) using .size before reading
+    import shutil
+
     MAX_SIZE = 50 * 1024 * 1024
-    contents = await file.read()
-    if len(contents) > MAX_SIZE:
+    if file.size and file.size > MAX_SIZE:
         raise HTTPException(400, "File too large (max 50MB)")
 
     _ensure_upload_dir()
@@ -69,8 +70,17 @@ async def upload_file(
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
 
+    # Stream-write file instead of reading entirely into memory
+    file_size = 0
     with open(filepath, "wb") as f:
-        f.write(contents)
+        shutil.copyfileobj(file.file, f)
+        # Get file size from the actual file on disk
+        file_size = os.path.getsize(filepath)
+
+    # Double-check file size after streaming (in case .size was None)
+    if file_size > MAX_SIZE:
+        os.remove(filepath)
+        raise HTTPException(400, "File too large (max 50MB)")
 
     upload = Upload(
         organization_id=member.organization_id,
@@ -78,7 +88,7 @@ async def upload_file(
         filename=filename,
         original_filename=file.filename or "unknown",
         mime_type=file.content_type or "application/octet-stream",
-        size=len(contents),
+        size=file_size,
         storage_path=filepath,
         is_temp=not (source_type and source_id),
         source_type=source_type,
@@ -152,7 +162,7 @@ async def get_upload(
     org_id = member.organization_id
 
     result = await db.execute(
-        select(Upload).where(Upload.id == upload_id, Upload.organization_id == org_id)
+        select(Upload).where(Upload.id == upload_id, Upload.organization_id == org_id, Upload.deleted_at.is_(None))
     )
     upload = result.scalar_one_or_none()
     if not upload:
@@ -178,7 +188,7 @@ async def download_file(
     org_id = member.organization_id
 
     result = await db.execute(
-        select(Upload).where(Upload.id == upload_id, Upload.organization_id == org_id)
+        select(Upload).where(Upload.id == upload_id, Upload.organization_id == org_id, Upload.deleted_at.is_(None))
     )
     upload = result.scalar_one_or_none()
     if not upload:
@@ -218,9 +228,5 @@ async def delete_upload(
     if not upload:
         raise HTTPException(404, "Upload not found")
 
-    # Delete from disk
-    if os.path.exists(upload.storage_path):
-        os.remove(upload.storage_path)
-
-    await db.delete(upload)
+    upload.deleted_at = datetime.now(timezone.utc)
     return APIResponse(message="File deleted")

@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,6 +84,10 @@ class TaskComment(TimestampMixin, Base):
     task = relationship("Task", backref="comments")
     author = relationship("User", foreign_keys=[author_id])
     parent = relationship("TaskComment", remote_side="TaskComment.id", backref="replies")
+
+    __table_args__ = (
+        Index("idx_task_comments_task_deleted", "task_id", "deleted_at"),
+    )
 
 
 class TaskActivity(Base):

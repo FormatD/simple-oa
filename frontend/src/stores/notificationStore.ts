@@ -69,10 +69,11 @@ export const useNotificationStore = defineStore("notification", {
       }
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/notifications/ws?token=${accessToken}`
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/notifications/ws`
 
       try {
-        this.ws = new WebSocket(wsUrl)
+        // Pass JWT via Sec-WebSocket-Protocol header instead of query param
+        this.ws = new WebSocket(wsUrl, [accessToken])
 
         this.ws.onopen = () => {
           this.connected = true
