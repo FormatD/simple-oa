@@ -8,13 +8,45 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from sqlalchemy import select
 from app.config import settings
-from app.database import async_engine, get_db
+from app.database import async_engine, AsyncSessionLocal
 from app.database import Base
+from app.models.permission import Permission
 import app.models  # noqa: F401 - ensure models registered
 
 # Import routers
 from app.api.v1 import auth, organizations, permissions, hr, tasks, wiki, notifications, audit, uploads
+
+
+# ─── Permission seed data ───────────────────────────────────
+
+SEED_PERMISSIONS = [
+    {"code": "user:read", "name": "查看用户信息", "module": "user", "description": "查看用户基本信息"},
+    {"code": "user:write", "name": "编辑用户信息", "module": "user", "description": "创建和编辑用户信息"},
+    {"code": "org:admin", "name": "组织管理", "module": "org", "description": "组织管理员权限"},
+    {"code": "org:read", "name": "查看组织信息", "module": "org", "description": "查看组织基本信息"},
+    {"code": "hr:employee:read", "name": "查看员工信息", "module": "hr", "description": "查看员工档案信息"},
+    {"code": "hr:employee:write", "name": "编辑员工信息", "module": "hr", "description": "创建和编辑员工档案"},
+    {"code": "hr:leave:read", "name": "查看请假信息", "module": "hr", "description": "查看请假申请和记录"},
+    {"code": "hr:leave:write", "name": "审批请假", "module": "hr", "description": "审批和操作请假申请"},
+    {"code": "hr:attendance:read", "name": "查看考勤记录", "module": "hr", "description": "查看员工考勤记录"},
+    {"code": "hr:attendance:write", "name": "编辑考勤记录", "module": "hr", "description": "编辑和修正考勤记录"},
+    {"code": "role:read", "name": "查看角色", "module": "role", "description": "查看角色列表和详情"},
+    {"code": "role:write", "name": "编辑角色", "module": "role", "description": "创建、编辑和删除角色"},
+    {"code": "permission:read", "name": "查看权限", "module": "permission", "description": "查看权限列表"},
+]
+
+
+async def seed_permissions(session):
+    """Seed basic permissions if the table is empty."""
+    result = await session.execute(select(Permission).limit(1))
+    if result.scalar_one_or_none() is not None:
+        return  # Already seeded
+
+    for perm_data in SEED_PERMISSIONS:
+        perm = Permission(**perm_data)
+        session.add(perm)
 
 
 @asynccontextmanager
@@ -24,6 +56,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with async_engine.begin() as conn:
         # Create tables (for development; use Alembic in production)
         await conn.run_sync(Base.metadata.create_all)
+
+    # Seed permissions after tables are ready
+    async with AsyncSessionLocal() as session:
+        await seed_permissions(session)
+        await session.commit()
+
     yield
     # Shutdown
     await async_engine.dispose()

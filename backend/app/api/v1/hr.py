@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from app.core.deps import get_current_user
 from app.core.encryption import decrypt_field, encrypt_field
@@ -62,8 +62,8 @@ router = APIRouter(prefix="/hr", tags=["hr"])
 async def _get_employee_by_id(db: AsyncSession, emp_id: uuid.UUID) -> Employee:
     result = await db.execute(
         select(Employee)
-        .options(selectinload(Employee.user), selectinload(Employee.department),
-                 selectinload(Employee.position))
+        .options(joinedload(Employee.user), joinedload(Employee.department),
+                 joinedload(Employee.position))
         .where(Employee.id == emp_id, Employee.deleted_at.is_(None))
     )
     emp = result.scalar_one_or_none()
@@ -76,8 +76,8 @@ async def _get_org_employee(db: AsyncSession, org_id: uuid.UUID, current_user: U
     """Get the employee record for the current user in an organization."""
     result = await db.execute(
         select(Employee)
-        .options(selectinload(Employee.user), selectinload(Employee.department),
-                 selectinload(Employee.position))
+        .options(joinedload(Employee.user), joinedload(Employee.department),
+                 joinedload(Employee.position))
         .where(Employee.user_id == current_user.id, Employee.organization_id == org_id,
                Employee.deleted_at.is_(None))
     )
@@ -284,7 +284,7 @@ async def list_employees(
         return APIResponse(data={"data": [], "pagination": {"page": page, "page_size": page_size, "total": 0}})
 
     query = select(Employee).options(
-        selectinload(Employee.user), selectinload(Employee.department), selectinload(Employee.position)
+        joinedload(Employee.user), joinedload(Employee.department), joinedload(Employee.position)
     ).where(
         Employee.organization_id == membership.organization_id,
         Employee.deleted_at.is_(None),
@@ -821,7 +821,7 @@ async def my_leave_balances(
 
     result = await db.execute(
         select(LeaveBalance)
-        .options(selectinload(LeaveBalance.leave_type))
+        .options(joinedload(LeaveBalance.leave_type))
         .where(LeaveBalance.employee_id == emp.id)
     )
     balances = result.scalars().all()
@@ -849,7 +849,7 @@ async def employee_leave_balances(
     emp = await _get_employee_by_id(db, emp_id)
     result = await db.execute(
         select(LeaveBalance)
-        .options(selectinload(LeaveBalance.leave_type))
+        .options(joinedload(LeaveBalance.leave_type))
         .where(LeaveBalance.employee_id == emp.id)
     )
     balances = result.scalars().all()
@@ -955,9 +955,9 @@ async def list_leave_requests(
         return APIResponse(data={"data": [], "pagination": {"page": page, "page_size": page_size, "total": 0}})
 
     query = select(LeaveRequest).options(
-        selectinload(LeaveRequest.employee).selectinload(Employee.user),
-        selectinload(LeaveRequest.leave_type),
-        selectinload(LeaveRequest.approver),
+        joinedload(LeaveRequest.employee).joinedload(Employee.user),
+        joinedload(LeaveRequest.leave_type),
+        joinedload(LeaveRequest.approver),
     ).where(
         or_(
             LeaveRequest.employee_id == emp.id,
@@ -1008,8 +1008,8 @@ async def list_pending_approvals(
         return APIResponse(data={"data": [], "pagination": {"page": page, "page_size": page_size, "total": 0}})
 
     query = select(LeaveRequest).options(
-        selectinload(LeaveRequest.employee).selectinload(Employee.user),
-        selectinload(LeaveRequest.leave_type),
+        joinedload(LeaveRequest.employee).joinedload(Employee.user),
+        joinedload(LeaveRequest.leave_type),
     ).where(
         LeaveRequest.status == "pending",
         or_(
@@ -1044,9 +1044,9 @@ async def get_leave_request(
     """Get leave request details."""
     result = await db.execute(
         select(LeaveRequest).options(
-            selectinload(LeaveRequest.employee).selectinload(Employee.user),
-            selectinload(LeaveRequest.leave_type),
-            selectinload(LeaveRequest.approver),
+            joinedload(LeaveRequest.employee).joinedload(Employee.user),
+            joinedload(LeaveRequest.leave_type),
+            joinedload(LeaveRequest.approver),
         ).where(LeaveRequest.id == req_id)
     )
     lr = result.scalar_one_or_none()
@@ -1066,8 +1066,8 @@ async def approve_leave_request(
     """Approve a leave request (approver only)."""
     result = await db.execute(
         select(LeaveRequest).options(
-            selectinload(LeaveRequest.employee).selectinload(Employee.user),
-            selectinload(LeaveRequest.leave_type),
+            joinedload(LeaveRequest.employee).joinedload(Employee.user),
+            joinedload(LeaveRequest.leave_type),
         ).where(LeaveRequest.id == req_id)
     )
     lr = result.scalar_one_or_none()
@@ -1108,8 +1108,8 @@ async def reject_leave_request(
     """Reject a leave request."""
     result = await db.execute(
         select(LeaveRequest).options(
-            selectinload(LeaveRequest.employee).selectinload(Employee.user),
-            selectinload(LeaveRequest.leave_type),
+            joinedload(LeaveRequest.employee).joinedload(Employee.user),
+            joinedload(LeaveRequest.leave_type),
         ).where(LeaveRequest.id == req_id)
     )
     lr = result.scalar_one_or_none()
