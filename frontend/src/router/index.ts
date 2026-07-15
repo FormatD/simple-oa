@@ -59,6 +59,36 @@ const router = createRouter({
         },
         {
           path: "hr/leave",
+        {
+          path: "hr/training/courses",
+          name: "TrainingCourses",
+          component: () => import("@/views/hr/training/CourseListPage.vue"),
+        },
+        {
+          path: "hr/training/plans",
+          name: "TrainingPlans",
+          component: () => import("@/views/hr/training/PlanListPage.vue"),
+        },
+        {
+          path: "hr/training/instructors",
+          name: "TrainingInstructors",
+          component: () => import("@/views/hr/training/InstructorPage.vue"),
+        },
+        {
+          path: "hr/training/registrations",
+          name: "TrainingRegistrations",
+          component: () => import("@/views/hr/training/RegistrationPage.vue"),
+        },
+        {
+          path: "hr/training/evaluations",
+          name: "TrainingEvaluations",
+          component: () => import("@/views/hr/training/EvaluationPage.vue"),
+        },
+        {
+          path: "hr/training/certificates",
+          name: "TrainingCertificates",
+          component: () => import("@/views/hr/training/CertificatePage.vue"),
+        },
           name: "Leave",
           component: () => import("@/views/hr/LeavePage.vue"),
         },

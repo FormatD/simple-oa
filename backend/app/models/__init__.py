@@ -16,6 +16,15 @@ from app.models.hr import (
     LeaveBalance,
     LeaveRequest,
 )
+from app.models.training import (
+    TrainingCourse,
+    TrainingPlan,
+    TrainingInstructor,
+    TrainingMaterial,
+    TrainingRegistration,
+    TrainingEvaluation,
+    TrainingCertificate,
+)
 from app.models.task import Task, TaskSubtask, TaskComment, TaskActivity
 from app.models.wiki import WikiFolder, WikiPage, WikiPageVersion
 from app.models.notification import Notification, NotificationRecipient, NotificationPreference
@@ -41,6 +50,13 @@ __all__ = [
     "LeaveType",
     "LeaveBalance",
     "LeaveRequest",
+    "TrainingCourse",
+    "TrainingPlan",
+    "TrainingInstructor",
+    "TrainingMaterial",
+    "TrainingRegistration",
+    "TrainingEvaluation",
+    "TrainingCertificate",
     "Task",
     "TaskSubtask",
     "TaskComment",

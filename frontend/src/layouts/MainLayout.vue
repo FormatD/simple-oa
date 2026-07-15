@@ -52,6 +52,36 @@
           <el-menu-item index="/hr/leave">
             <el-icon><Tickets /></el-icon>
             <template #title>请假管理</template>
+          <el-sub-menu index="training">
+            <template #title>
+              <el-icon><Reading /></el-icon>
+              <span>培训管理</span>
+            </template>
+            <el-menu-item index="/hr/training/courses">
+              <el-icon><Notebook /></el-icon>
+              <template #title>课程管理</template>
+            </el-menu-item>
+            <el-menu-item index="/hr/training/plans">
+              <el-icon><Calendar /></el-icon>
+              <template #title>培训计划</template>
+            </el-menu-item>
+            <el-menu-item index="/hr/training/instructors">
+              <el-icon><User /></el-icon>
+              <template #title>讲师管理</template>
+            </el-menu-item>
+            <el-menu-item index="/hr/training/registrations">
+              <el-icon><EditPen /></el-icon>
+              <template #title>报名签到</template>
+            </el-menu-item>
+            <el-menu-item index="/hr/training/evaluations">
+              <el-icon><Star /></el-icon>
+              <template #title>效果评估</template>
+            </el-menu-item>
+            <el-menu-item index="/hr/training/certificates">
+              <el-icon><TrophyBase /></el-icon>
+              <template #title>证书管理</template>
+            </el-menu-item>
+          </el-sub-menu>
           </el-menu-item>
         </el-sub-menu>
 
