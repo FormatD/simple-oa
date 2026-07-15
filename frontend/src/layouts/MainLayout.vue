@@ -75,10 +75,34 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <el-menu-item index="/reports">
-          <el-icon><DataAnalysis /></el-icon>
-          <template #title>报表中心</template>
-        </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="stage4">
+          <template #title>
+            <el-icon><DataAnalysis /></el-icon>
+            <span>扩展功能</span>
+          </template>
+          <el-menu-item index="/imports">
+            <el-icon><Upload /></el-icon>
+            <template #title>数据导入</template>
+          </el-menu-item>
+          <el-menu-item index="/reports">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>报表中心</template>
+          </el-menu-item>
+          <el-menu-item index="/training">
+            <el-icon><Reading /></el-icon>
+            <template #title>培训管理</template>
+          </el-menu-item>
+          <el-menu-item index="/benefits">
+            <el-icon><Present /></el-icon>
+            <template #title>福利管理</template>
+          </el-menu-item>
+          <el-menu-item index="/onboarding">
+            <el-icon><UserFilled /></el-icon>
+            <template #title>入职/离职</template>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 

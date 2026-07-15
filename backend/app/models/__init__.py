@@ -21,6 +21,9 @@ from app.models.wiki import WikiFolder, WikiPage, WikiPageVersion
 from app.models.notification import Notification, NotificationRecipient, NotificationPreference
 from app.models.audit import AuditLog
 from app.models.upload import Upload
+from app.models.training import TrainingCourse, TrainingEnrollment
+from app.models.benefits import BenefitItem, EmployeeBenefit, BenefitClaim
+from app.models.import_record import ImportRecord
 
 __all__ = [
     "TimestampMixin",
@@ -53,4 +56,10 @@ __all__ = [
     "NotificationPreference",
     "AuditLog",
     "Upload",
+    "TrainingCourse",
+    "TrainingEnrollment",
+    "BenefitItem",
+    "EmployeeBenefit",
+    "BenefitClaim",
+    "ImportRecord",
 ]

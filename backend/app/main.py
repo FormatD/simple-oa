@@ -17,6 +17,7 @@ import app.models  # noqa: F401 - ensure models registered
 
 # Import routers
 from app.api.v1 import auth, organizations, permissions, hr, tasks, wiki, notifications, audit, uploads
+from app.api.v1 import reports, imports, training, benefits, onboarding
 
 
 # ─── Permission seed data ───────────────────────────────────
@@ -110,3 +111,8 @@ app.include_router(wiki.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(uploads.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
+app.include_router(imports.router, prefix="/api/v1")
+app.include_router(training.router, prefix="/api/v1")
+app.include_router(benefits.router, prefix="/api/v1")
+app.include_router(onboarding.router, prefix="/api/v1")

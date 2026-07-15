@@ -85,6 +85,32 @@ const router = createRouter({
           name: "AuditLogs",
           component: () => import("@/views/audit/AuditLogPage.vue"),
         },
+        // Stage 4 Routes
+        {
+          path: "imports",
+          name: "Imports",
+          component: () => import("@/views/imports/ImportPage.vue"),
+        },
+        {
+          path: "reports",
+          name: "Reports",
+          component: () => import("@/views/reports/ReportPage.vue"),
+        },
+        {
+          path: "training",
+          name: "Training",
+          component: () => import("@/views/training/TrainingPage.vue"),
+        },
+        {
+          path: "benefits",
+          name: "Benefits",
+          component: () => import("@/views/benefits/BenefitsPage.vue"),
+        },
+        {
+          path: "onboarding",
+          name: "Onboarding",
+          component: () => import("@/views/onboarding/OnboardingPage.vue"),
+        },
       ],
     },
   ],
