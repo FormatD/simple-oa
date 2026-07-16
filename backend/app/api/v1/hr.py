@@ -930,6 +930,17 @@ async def create_leave_request(
         db.add(balance)
 
     await db.flush()
+    # Reload with relationships to avoid async greenlet context loss on lazy load
+    result = await db.execute(
+        select(LeaveRequest)
+        .options(
+            joinedload(LeaveRequest.employee).joinedload(Employee.user),
+            joinedload(LeaveRequest.leave_type),
+            joinedload(LeaveRequest.approver),
+        )
+        .where(LeaveRequest.id == leave_req.id)
+    )
+    leave_req = result.scalar_one_or_none()
     return APIResponse(data=await _leave_request_to_response(db, leave_req))
 
 
