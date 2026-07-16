@@ -1,11 +1,14 @@
-"""Wiki/knowledge base models."""
+"""Wiki/knowledge base models.
+
+P2: Added search_vector tsvector column with GIN index for full-text search.
+"""
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,6 +39,9 @@ class WikiFolder(TimestampMixin, Base):
 
 class WikiPage(TimestampMixin, Base):
     __tablename__ = "wiki_pages"
+    __table_args__ = (
+        Index("ix_wiki_pages_search_vector", "search_vector", postgresql_using="gin"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -58,6 +64,8 @@ class WikiPage(TimestampMixin, Base):
     last_edited_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
+    # P2: tsvector column for full-text search
+    search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
 
     folder = relationship("WikiFolder", backref="pages")
     creator = relationship("User", foreign_keys=[created_by])

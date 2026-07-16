@@ -508,6 +508,65 @@ async def remove_department_member(
     return APIResponse(message="Member removed from department")
 
 
+
+@router.get("/{org_id}/departments/children", response_model=APIResponse)
+async def list_department_children(
+    org_id: uuid.UUID,
+    parent_id: uuid.UUID | None = Query(None, description="Parent department ID (null for root nodes)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lazy-load department children (P3). Returns only direct children of parent_id."""
+    query = select(Department).where(
+        Department.organization_id == org_id,
+        Department.deleted_at.is_(None),
+    )
+
+    if parent_id is None:
+        query = query.where(Department.parent_id.is_(None))
+    else:
+        query = query.where(Department.parent_id == parent_id)
+
+    # Count total
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_query)).scalar() or 0
+
+    query = query.order_by(Department.sort_order, Department.name)
+    query = query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(query)
+    depts = result.scalars().all()
+
+    # Check if each department has children (for UI expand icon)
+    tree_data = []
+    for dept in depts:
+        child_count = await db.execute(
+            select(func.count()).where(
+                Department.parent_id == dept.id,
+                Department.deleted_at.is_(None),
+            )
+        )
+        has_children = (child_count.scalar() or 0) > 0
+
+        tree_data.append({
+            "id": str(dept.id),
+            "organization_id": str(dept.organization_id),
+            "parent_id": str(dept.parent_id) if dept.parent_id else None,
+            "name": dept.name,
+            "path": dept.path,
+            "sort_order": dept.sort_order,
+            "has_children": has_children,
+            "member_count": 0,
+        })
+
+    return APIResponse(data={
+        "data": tree_data,
+        "pagination": {"page": page, "page_size": page_size, "total": total},
+    })
+
+
 # ─── Helpers ──────────────────────────────────────────────────────
 
 

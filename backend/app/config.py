@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # RLS (E5)
+
+    # OpenTelemetry (R2)
+    OTEL_EXPORTER_ENDPOINT: str = ""
+
+    # Redis Queue (R3: split from cache Redis)
+    REDIS_QUEUE_URL: str = "redis://localhost:6380/0"
+
     ENABLE_RLS: bool = True
 
     @property

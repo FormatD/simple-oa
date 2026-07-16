@@ -1,26 +1,26 @@
-"""Field-level encryption utilities (CR R6).
-Uses symmetric Fernet encryption for sensitive fields at rest.
+"""Field-level encryption utilities (CR R6/R8).
+Upgraded to AES-256-GCM for stronger encryption of sensitive fields at rest (CR R8).
 """
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
-from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
-import os
 
 from app.config import settings
 
 # Derive encryption key from the JWT secret (should use a dedicated key in production)
 _SALT = b"enterprise-mgmt-r6-salt"
+_AAD = b"enterprise-mgmt-emergency-contact"
 
 
-def _get_fernet() -> Fernet:
-    """Derive Fernet key from settings (or env var for production)."""
-    # Use a dedicated encryption key or derive from JWT secret
+def _get_aes_key() -> bytes:
+    """Derive a 256-bit AES-GCM key from settings."""
     key_material = settings.JWT_SECRET_KEY.encode("utf-8")
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -28,37 +28,54 @@ def _get_fernet() -> Fernet:
         salt=_SALT,
         iterations=100000,
     )
-    key = base64.urlsafe_b64encode(kdf.derive(key_material))
-    return Fernet(key)
+    return kdf.derive(key_material)
 
 
 def encrypt_field(data: dict[str, Any]) -> dict[str, Any]:
-    """Encrypt sensitive fields (phone field in emergency_contact)."""
+    """Encrypt sensitive fields (phone field in emergency_contact) using AES-256-GCM."""
     if not data:
         return data
 
     encrypted = dict(data)
     if "phone" in encrypted and encrypted["phone"]:
-        fernet = _get_fernet()
+        key = _get_aes_key()
+        aesgcm = AESGCM(key)
+        nonce = os.urandom(12)
         phone_bytes = encrypted["phone"].encode("utf-8")
-        encrypted["phone"] = fernet.encrypt(phone_bytes).decode("utf-8")
+        ct = aesgcm.encrypt(nonce, phone_bytes, _AAD)
+        # Store as base64(nonce + ciphertext)
+        encrypted["phone"] = base64.b64encode(nonce + ct).decode("utf-8")
 
     return encrypted
 
 
 def decrypt_field(data: dict[str, Any]) -> dict[str, Any]:
-    """Decrypt sensitive fields."""
+    """Decrypt sensitive fields encrypted with AES-256-GCM."""
     if not data:
         return data
 
     decrypted = dict(data)
     if "phone" in decrypted and decrypted["phone"]:
         try:
-            fernet = _get_fernet()
-            phone_bytes = decrypted["phone"].encode("utf-8")
-            decrypted["phone"] = fernet.decrypt(phone_bytes).decode("utf-8")
+            key = _get_aes_key()
+            aesgcm = AESGCM(key)
+            raw = base64.b64decode(decrypted["phone"])
+            nonce = raw[:12]
+            ct = raw[12:]
+            decrypted["phone"] = aesgcm.decrypt(nonce, ct, _AAD).decode("utf-8")
         except Exception:
-            # If decryption fails, return as-is (field may not be encrypted yet)
+            # If decryption fails, field may not be encrypted yet; return as-is
             pass
 
     return decrypted
+
+
+def is_field_encrypted(data: dict[str, Any]) -> bool:
+    """Check if a field was encrypted with AES-GCM (base64 nonce+ct)."""
+    if not data or "phone" not in data:
+        return False
+    try:
+        raw = base64.b64decode(data["phone"])
+        return len(raw) > 12
+    except Exception:
+        return False

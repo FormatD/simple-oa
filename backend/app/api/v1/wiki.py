@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -369,8 +369,42 @@ async def search_pages(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search wiki pages."""
+    """Search wiki pages using PostgreSQL full-text search (P2)."""
     org_id = await _get_org_id(current_user, db)
+
+    # Use tsvector full-text search, fall back to ilike for short queries
+    if len(q) >= 3:
+        try:
+            ts_query = func.plainto_tsquery("simple", q)
+            result = await db.execute(
+                select(WikiPage).options(
+                    selectinload(WikiPage.creator), selectinload(WikiPage.editor)
+                )
+                .where(
+                    WikiPage.organization_id == org_id,
+                    WikiPage.deleted_at.is_(None),
+                    WikiPage.search_vector.op("@@")(ts_query),
+                )
+                .order_by(
+                    func.ts_rank(WikiPage.search_vector, ts_query).desc(),
+                    WikiPage.updated_at.desc(),
+                )
+                .limit(50)
+            )
+            pages = result.scalars().all()
+        except Exception:
+            # Fall back to ilike if tsquery fails
+            pages = await _fallback_search(db, org_id, q)
+    else:
+        pages = await _fallback_search(db, org_id, q)
+
+    return APIResponse(data=[_page_to_response(p) for p in pages])
+
+
+async def _fallback_search(
+    db: AsyncSession, org_id: uuid.UUID, q: str
+) -> list[WikiPage]:
+    """Fallback search using ilike (for short queries or tsvector errors)."""
     result = await db.execute(
         select(WikiPage).options(selectinload(WikiPage.creator), selectinload(WikiPage.editor))
         .where(
@@ -384,8 +418,7 @@ async def search_pages(
         .order_by(WikiPage.updated_at.desc())
         .limit(50)
     )
-    pages = result.scalars().all()
-    return APIResponse(data=[_page_to_response(p) for p in pages])
+    return result.scalars().all()
 
 
 # ─── Versions ─────────────────────────────────────────

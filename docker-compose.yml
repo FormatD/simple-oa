@@ -16,12 +16,26 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
+  # R3: Redis split — cache (RDB persistence)
+  redis-cache:
     image: redis:7-alpine
+    command: redis-server --save 900 1 --save 300 10 --appendonly no
     ports:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # R3: Redis split — queue/Pub/Sub (AOF persistence)
+  redis-queue:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly yes --appendfsync everysec
+    ports:
+      - "6380:6380"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6380", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,7 +48,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/enterprise_mgmt
       DATABASE_SYNC_URL: postgresql://postgres:postgres@postgres:5432/enterprise_mgmt
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis-cache:6379/0
+      REDIS_QUEUE_URL: redis://redis-queue:6380/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
       JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-change-me-too}
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
@@ -42,7 +57,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      redis-cache:
+        condition: service_healthy
+      redis-queue:
         condition: service_healthy
 
   frontend:

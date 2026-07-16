@@ -1,7 +1,124 @@
 <template>
   <el-container class="main-layout">
-    <!-- Sidebar -->
-    <el-aside :width="isCollapsed ? '64px' : '240px'" class="sidebar">
+    <!-- Mobile drawer toggle button -->
+    <div class="mobile-header" v-if="isMobile">
+      <el-button text @click="drawerVisible = true" class="menu-btn">
+        <el-icon :size="22"><Fold /></el-icon>
+      </el-button>
+      <span class="mobile-title">企业管理</span>
+    </div>
+
+    <!-- Mobile drawer sidebar -->
+    <el-drawer
+      v-model="drawerVisible"
+      direction="ltr"
+      size="240px"
+      :with-header="false"
+      :modal="true"
+      :z-index="2000"
+      class="mobile-drawer"
+    >
+      <div class="sidebar-header">
+        <span class="logo-text">企业管理</span>
+      </div>
+      <el-menu
+        :default-active="currentRoute"
+        :router="true"
+        background-color="#001529"
+        text-color="#ffffffb3"
+        active-text-color="#ffffff"
+        class="sidebar-menu"
+        @select="drawerVisible = false"
+      >
+        <el-menu-item index="/dashboard">
+          <el-icon><Odometer /></el-icon>
+          <template #title>工作台</template>
+        </el-menu-item>
+
+        <el-sub-menu index="organization">
+          <template #title>
+            <el-icon><OfficeBuilding /></el-icon>
+            <span>组织管理</span>
+          </template>
+          <el-menu-item index="/organizations">
+            <el-icon><Management /></el-icon>
+            <template #title>组织设置</template>
+          </el-menu-item>
+          <el-menu-item index="/organizations/departments">
+            <el-icon><Share /></el-icon>
+            <template #title>部门管理</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="hr">
+          <template #title>
+            <el-icon><UserFilled /></el-icon>
+            <span>人力资源</span>
+          </template>
+          <el-menu-item index="/hr/employees">
+            <el-icon><Avatar /></el-icon>
+            <template #title>员工管理</template>
+          </el-menu-item>
+          <el-menu-item index="/hr/attendance">
+            <el-icon><Clock /></el-icon>
+            <template #title>考勤管理</template>
+          </el-menu-item>
+          <el-menu-item index="/hr/leave">
+            <el-icon><Tickets /></el-icon>
+            <template #title>请假管理</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="collaboration">
+          <template #title>
+            <el-icon><List /></el-icon>
+            <span>团队协作</span>
+          </template>
+          <el-menu-item index="/tasks">
+            <el-icon><List /></el-icon>
+            <template #title>任务管理</template>
+          </el-menu-item>
+          <el-menu-item index="/wiki">
+            <el-icon><Notebook /></el-icon>
+            <template #title>知识库</template>
+          </el-menu-item>
+          <el-menu-item index="/audit-logs">
+            <el-icon><View /></el-icon>
+            <template #title>审计日志</template>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="stage4">
+          <template #title>
+            <el-icon><DataAnalysis /></el-icon>
+            <span>扩展功能</span>
+          </template>
+          <el-menu-item index="/imports">
+            <el-icon><Upload /></el-icon>
+            <template #title>数据导入</template>
+          </el-menu-item>
+          <el-menu-item index="/reports">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>报表中心</template>
+          </el-menu-item>
+          <el-menu-item index="/training">
+            <el-icon><Reading /></el-icon>
+            <template #title>培训管理</template>
+          </el-menu-item>
+          <el-menu-item index="/benefits">
+            <el-icon><Present /></el-icon>
+            <template #title>福利管理</template>
+          </el-menu-item>
+          <el-menu-item index="/onboarding">
+            <el-icon><UserFilled /></el-icon>
+            <template #title>入职/离职</template>
+          </el-menu-item>
+        </el-sub-menu>
+      </el-menu>
+    </el-drawer>
+
+    <!-- Desktop sidebar -->
+    <el-aside :width="isCollapsed ? '64px' : '240px'" class="sidebar sidebar-desktop" v-if="!isMobile">
       <div class="sidebar-header">
         <span v-if="!isCollapsed" class="logo-text">企业管理</span>
         <el-icon v-else :size="24"><HomeFilled /></el-icon>
@@ -55,7 +172,6 @@
           </el-menu-item>
         </el-sub-menu>
 
-        <!-- Team Collaboration -->
         <el-sub-menu index="collaboration">
           <template #title>
             <el-icon><List /></el-icon>
@@ -73,8 +189,6 @@
             <el-icon><View /></el-icon>
             <template #title>审计日志</template>
           </el-menu-item>
-        </el-sub-menu>
-
         </el-sub-menu>
 
         <el-sub-menu index="stage4">
@@ -114,6 +228,7 @@
             :size="20"
             class="collapse-btn"
             @click="isCollapsed = !isCollapsed"
+            v-if="!isMobile"
           >
             <Fold v-if="!isCollapsed" />
             <Expand v-else />
@@ -129,13 +244,12 @@
         </div>
 
         <div class="navbar-right">
-          <!-- Notification Center -->
           <NotificationCenter />
 
           <el-dropdown trigger="click" @command="handleUserCommand">
             <span class="user-dropdown">
               <el-avatar :size="32" icon="UserFilled" />
-              <span class="username">{{ authStore.user?.display_name || "用户" }}</span>
+              <span class="username" v-if="!isMobile">{{ authStore.user?.display_name || "用户" }}</span>
               <el-icon><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
@@ -164,7 +278,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, onUnmounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useAuthStore } from "@/stores/authStore"
 import { useNotificationStore } from "@/stores/notificationStore"
@@ -176,6 +290,9 @@ const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 
 const isCollapsed = ref(false)
+const drawerVisible = ref(false)
+const isMobile = ref(window.innerWidth < 768)
+
 const currentRoute = computed(() => route.path)
 const routeName = computed(() => {
   const name = route.name
@@ -190,13 +307,21 @@ function handleUserCommand(command: string) {
   }
 }
 
+function checkMobile() {
+  isMobile.value = window.innerWidth < 768
+}
+
 onMounted(() => {
-  // Connect WebSocket for real-time notifications when logged in
+  window.addEventListener("resize", checkMobile)
   if (authStore.isLoggedIn && authStore.accessToken) {
     setTimeout(() => {
       notificationStore.connectWebSocket(authStore.accessToken!)
     }, 1000)
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener("resize", checkMobile)
 })
 </script>
 
@@ -205,7 +330,49 @@ onMounted(() => {
   height: 100vh;
 }
 
-.sidebar {
+.mobile-header {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 12px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  gap: 8px;
+
+  .menu-btn {
+    padding: 4px;
+  }
+
+  .mobile-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #303133;
+  }
+}
+
+.mobile-drawer {
+  :deep(.el-drawer__body) {
+    padding: 0;
+    background-color: #001529;
+  }
+
+  .sidebar-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-menu {
+    border-right: none;
+  }
+}
+
+.sidebar-desktop {
   background-color: #001529;
   transition: width 0.3s;
   overflow: hidden;
@@ -271,5 +438,30 @@ onMounted(() => {
   background-color: #f5f7fa;
   padding: 20px;
   overflow-y: auto;
+
+  @media (max-width: 767px) {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    display: none;
+  }
+
+  .navbar {
+    height: 48px;
+    padding: 0 12px;
+
+    .navbar-left {
+      .el-breadcrumb {
+        font-size: 12px;
+      }
+    }
+
+    .navbar-right {
+      gap: 12px;
+    }
+  }
 }
 </style>
