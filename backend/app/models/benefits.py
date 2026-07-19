@@ -93,6 +93,6 @@ class BenefitClaim(TimestampMixin, Base):
     )
     receipt_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    employee = relationship("Employee", backref="benefit_claims")
+    employee = relationship("Employee", backref="benefit_claims", foreign_keys=[employee_id])
     benefit_item = relationship("BenefitItem")
     approver = relationship("Employee", foreign_keys=[approved_by])
