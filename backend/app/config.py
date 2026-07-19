@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     OTEL_EXPORTER_ENDPOINT: str = ""
 
     # Redis Queue (R3: split from cache Redis)
+
+    # Encryption (M4: independent from JWT_SECRET_KEY)
+    ENCRYPTION_KEY: str = ""
+
     REDIS_QUEUE_URL: str = "redis://localhost:6380/0"
 
     ENABLE_RLS: bool = True

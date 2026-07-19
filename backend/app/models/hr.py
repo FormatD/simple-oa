@@ -214,3 +214,30 @@ class LeaveRequest(TimestampMixin, Base):
     employee = relationship("Employee", backref="leave_requests", foreign_keys=[employee_id])
     leave_type = relationship("LeaveType")
     approver = relationship("Employee", foreign_keys=[approver_id])
+
+
+# ─── R10: Interviewer Availability ────────────────────
+
+class InterviewerAvailability(TimestampMixin, Base):
+    """Interviewer availability tracking (R10)."""
+    __tablename__ = "interviewer_availability"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    time_slot: Mapped[str] = mapped_column(
+        String(20), nullable=False  # morning, afternoon, evening
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), default="available",  # available, busy, out_of_office
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    employee = relationship("Employee", backref="interviewer_availability")

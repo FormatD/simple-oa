@@ -1,9 +1,10 @@
 """Field-level encryption utilities (CR R6/R8).
 Upgraded to AES-256-GCM for stronger encryption of sensitive fields at rest (CR R8).
+Uses independent ENCRYPTION_KEY setting (M4) instead of binding to JWT_SECRET_KEY.
 """
 from __future__ import annotations
 
-import json
+import logging
 import os
 from typing import Any
 
@@ -14,14 +15,16 @@ import base64
 
 from app.config import settings
 
-# Derive encryption key from the JWT secret (should use a dedicated key in production)
+logger = logging.getLogger(__name__)
+
 _SALT = b"enterprise-mgmt-r6-salt"
 _AAD = b"enterprise-mgmt-emergency-contact"
 
 
 def _get_aes_key() -> bytes:
-    """Derive a 256-bit AES-GCM key from settings."""
-    key_material = settings.JWT_SECRET_KEY.encode("utf-8")
+    """Derive a 256-bit AES-GCM key from ENCRYPTION_KEY or JWT_SECRET_KEY (fallback)."""
+    key_material = settings.ENCRYPTION_KEY or settings.JWT_SECRET_KEY
+    key_material = key_material.encode("utf-8")
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -43,7 +46,6 @@ def encrypt_field(data: dict[str, Any]) -> dict[str, Any]:
         nonce = os.urandom(12)
         phone_bytes = encrypted["phone"].encode("utf-8")
         ct = aesgcm.encrypt(nonce, phone_bytes, _AAD)
-        # Store as base64(nonce + ciphertext)
         encrypted["phone"] = base64.b64encode(nonce + ct).decode("utf-8")
 
     return encrypted
@@ -63,8 +65,9 @@ def decrypt_field(data: dict[str, Any]) -> dict[str, Any]:
             nonce = raw[:12]
             ct = raw[12:]
             decrypted["phone"] = aesgcm.decrypt(nonce, ct, _AAD).decode("utf-8")
-        except Exception:
-            # If decryption fails, field may not be encrypted yet; return as-is
+        except Exception as exc:
+            # M2: Log decryption failure instead of silently swallowing
+            logger.warning("Failed to decrypt emergency_contact phone field: %s", exc)
             pass
 
     return decrypted

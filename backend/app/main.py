@@ -64,15 +64,18 @@ def setup_opentelemetry(app: FastAPI) -> None:
     """Configure OpenTelemetry instrumentation (CR R2)."""
     otel_endpoint = settings.OTEL_EXPORTER_ENDPOINT
 
+    # M5: Only initialize when an exporter endpoint is configured
+    if not otel_endpoint:
+        return
+
     resource = Resource(attributes={
         SERVICE_NAME: settings.APP_NAME,
     })
     provider = TracerProvider(resource=resource)
 
-    if otel_endpoint:
-        otlp_exporter = OTLPSpanExporter(endpoint=otel_endpoint)
-        span_processor = BatchSpanProcessor(otlp_exporter)
-        provider.add_span_processor(span_processor)
+    otlp_exporter = OTLPSpanExporter(endpoint=otel_endpoint)
+    span_processor = BatchSpanProcessor(otlp_exporter)
+    provider.add_span_processor(span_processor)
 
     trace.set_tracer_provider(provider)
 
@@ -109,7 +112,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await conn.execute(text("""
                 CREATE TRIGGER trg_wiki_page_search_vector
-                BEFORE INSERT OR UPDATE OF title, content ON wiki_pages
+                BEFORE INSERT OR UPDATE OF title, content, content_html ON wiki_pages
                 FOR EACH ROW
                 EXECUTE FUNCTION wiki_page_search_vector_update();
             """))
@@ -124,6 +127,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
     # Shutdown
+    # M1: Gracefully shutdown OpenTelemetry TracerProvider
+    try:
+        from opentelemetry import trace as _otel_trace
+        _provider = _otel_trace.get_tracer_provider()
+        if hasattr(_provider, 'shutdown'):
+            _provider.shutdown()
+    except Exception:
+        pass
+
     await async_engine.dispose()
 
 

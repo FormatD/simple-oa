@@ -266,3 +266,31 @@ class PaginatedAttendanceResponse(BaseModel):
 class PaginatedLeaveRequestResponse(BaseModel):
     data: list[LeaveRequestResponse]
     pagination: dict[str, int]
+
+
+# ─── R10: Interviewer Availability ────────────────────
+
+class InterviewerAvailabilitySet(BaseModel):
+    date: date
+    time_slot: str = Field(..., pattern=r"^(morning|afternoon|evening)$")
+    status: str = Field(default="available", pattern=r"^(available|busy|out_of_office)$")
+    notes: str | None = None
+
+
+class InterviewerAvailabilityResponse(BaseModel):
+    id: str
+    employee_id: str
+    employee_name: str | None = None
+    date: str
+    time_slot: str
+    status: str
+    notes: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class InterviewerAvailabilityCheckRequest(BaseModel):
+    start_date: date
+    end_date: date
+    time_slot: str | None = Field(None, pattern=r"^(morning|afternoon|evening)$")
+    department_id: str | None = None

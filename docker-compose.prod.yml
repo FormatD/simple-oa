@@ -60,13 +60,14 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # M7: backend is NOT exposed to host — accessed only via frontend nginx reverse proxy
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+    expose:
+      - "8000"
     environment:
       APP_NAME: ${APP_NAME:-Enterprise Management}
       DEBUG: "false"

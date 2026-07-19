@@ -1218,3 +1218,193 @@ async def _leave_request_to_response(db: AsyncSession, lr: LeaveRequest) -> Leav
         created_at=lr.created_at.isoformat() if lr.created_at else "",
         updated_at=lr.updated_at.isoformat() if lr.updated_at else "",
     )
+
+
+# ─── R10: Interviewer Availability ────────────────────
+
+
+@router.get("/interviewer-availability", response_model=APIResponse)
+async def check_interviewer_availability(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    time_slot: str | None = Query(None),
+    department_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '''Check available interviewers for a date range (R10).'''
+    from app.models.organization import OrganizationMember
+    org_result = await db.execute(
+        select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
+    )
+    membership = org_result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=400, detail="User not in any organization")
+
+    # Build query: find employees who are available in the given date range
+    query = (
+        select(Employee)
+        .options(joinedload(Employee.user), joinedload(Employee.department))
+        .where(
+            Employee.organization_id == membership.organization_id,
+            Employee.status == "active",
+            Employee.deleted_at.is_(None),
+        )
+    )
+    if department_id:
+        query = query.where(Employee.department_id == uuid.UUID(department_id))
+
+    employees = (await db.execute(query)).scalars().all()
+    emp_ids = [e.id for e in employees]
+
+    if not emp_ids:
+        return APIResponse(data={"available": [], "unavailable": []})
+
+    # Get existing availability records for the date range
+    avail_query = select(InterviewerAvailability).where(
+        InterviewerAvailability.employee_id.in_(emp_ids),
+        InterviewerAvailability.date.between(start_date, end_date),
+    )
+    if time_slot:
+        avail_query = avail_query.where(InterviewerAvailability.time_slot == time_slot)
+
+    avail_records = (await db.execute(avail_query)).scalars().all()
+
+    # Build availability map: (employee_id, date, time_slot) -> status
+    avail_map = {}
+    for rec in avail_records:
+        key = (str(rec.employee_id), str(rec.date), rec.time_slot)
+        avail_map[key] = rec.status
+
+    # Categorize employees: available if no busy/out_of_office record
+    time_slots = [time_slot] if time_slot else ["morning", "afternoon", "evening"]
+    available = []
+    unavailable = []
+
+    emp_map = {str(e.id): e for e in employees}
+    current_date = start_date
+    from datetime import timedelta
+    while current_date <= end_date:
+        for emp in employees:
+            for slot in time_slots:
+                key = (str(emp.id), str(current_date), slot)
+                status = avail_map.get(key, "available")
+                entry = {
+                    "employee_id": str(emp.id),
+                    "employee_name": emp.user.display_name if emp.user else "",
+                    "employee_no": emp.employee_no,
+                    "department_name": emp.department.name if emp.department else "",
+                    "date": str(current_date),
+                    "time_slot": slot,
+                    "status": status,
+                }
+                if status == "available":
+                    available.append(entry)
+                else:
+                    unavailable.append(entry)
+        current_date += timedelta(days=1)
+
+    return APIResponse(data={"available": available, "unavailable": unavailable})
+
+
+@router.post("/interviewer-availability", response_model=APIResponse, status_code=201)
+async def set_interviewer_availability(
+    req: InterviewerAvailabilitySet,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '''Set or update interviewer availability for a specific slot (R10).'''
+    from app.models.organization import OrganizationMember
+    org_result = await db.execute(
+        select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
+    )
+    membership = org_result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=400, detail="User not in any organization")
+
+    emp = await _get_org_employee(db, membership.organization_id, current_user)
+    if not emp:
+        raise HTTPException(status_code=400, detail="Employee profile not found")
+
+    # Upsert: find existing or create new
+    result = await db.execute(
+        select(InterviewerAvailability).where(
+            InterviewerAvailability.employee_id == emp.id,
+            InterviewerAvailability.date == req.date,
+            InterviewerAvailability.time_slot == req.time_slot,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.status = req.status
+        existing.notes = req.notes
+        db.add(existing)
+        await db.flush()
+        record = existing
+    else:
+        record = InterviewerAvailability(
+            employee_id=emp.id,
+            date=req.date,
+            time_slot=req.time_slot,
+            status=req.status,
+            notes=req.notes,
+        )
+        db.add(record)
+        await db.flush()
+
+    return APIResponse(data=InterviewerAvailabilityResponse(
+        id=str(record.id),
+        employee_id=str(record.employee_id),
+        employee_name=emp.user.display_name if emp.user else None,
+        date=str(record.date),
+        time_slot=record.time_slot,
+        status=record.status,
+        notes=record.notes,
+        created_at=record.created_at.isoformat() if record.created_at else "",
+        updated_at=record.updated_at.isoformat() if record.updated_at else "",
+    ))
+
+
+@router.get("/interviewer-availability/my", response_model=APIResponse)
+async def get_my_availability(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    '''Get current user's own availability for a date range (R10).'''
+    from app.models.organization import OrganizationMember
+    org_result = await db.execute(
+        select(OrganizationMember).where(OrganizationMember.user_id == current_user.id)
+    )
+    membership = org_result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=400, detail="User not in any organization")
+
+    emp = await _get_org_employee(db, membership.organization_id, current_user)
+    if not emp:
+        raise HTTPException(status_code=400, detail="Employee profile not found")
+
+    result = await db.execute(
+        select(InterviewerAvailability).where(
+            InterviewerAvailability.employee_id == emp.id,
+            InterviewerAvailability.date.between(start_date, end_date),
+        ).order_by(InterviewerAvailability.date, InterviewerAvailability.time_slot)
+    )
+    records = result.scalars().all()
+
+    return APIResponse(data=[
+        InterviewerAvailabilityResponse(
+            id=str(r.id),
+            employee_id=str(r.employee_id),
+            employee_name=emp.user.display_name if emp.user else None,
+            date=str(r.date),
+            time_slot=r.time_slot,
+            status=r.status,
+            notes=r.notes,
+            created_at=r.created_at.isoformat() if r.created_at else "",
+            updated_at=r.updated_at.isoformat() if r.updated_at else "",
+        )
+        for r in records
+    ])

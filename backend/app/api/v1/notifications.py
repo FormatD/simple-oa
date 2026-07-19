@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import get_current_user
+from app.core.redis_queue import publish_notification
 from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.auth import User
@@ -152,6 +153,9 @@ async def create_and_send_notification(
     }
     for rid in recipient_ids:
         await manager.send_to_user(str(rid), event_data)
+
+    # C2: Also publish to queue Redis for cross-process notification broadcasting
+    await publish_notification(event_data)
 
     return notification
 

@@ -539,27 +539,32 @@ async def list_department_children(
     result = await db.execute(query)
     depts = result.scalars().all()
 
-    # Check if each department has children (for UI expand icon)
+    # M3: Batch count children using GROUP BY to avoid N+1
     tree_data = []
-    for dept in depts:
-        child_count = await db.execute(
-            select(func.count()).where(
-                Department.parent_id == dept.id,
+    if depts:
+        dept_ids = [d.id for d in depts]
+        child_counts = await db.execute(
+            select(Department.parent_id, func.count().label("cnt"))
+            .where(
+                Department.parent_id.in_(dept_ids),
                 Department.deleted_at.is_(None),
             )
+            .group_by(Department.parent_id)
         )
-        has_children = (child_count.scalar() or 0) > 0
+        child_count_map = {str(row.parent_id): row.cnt for row in child_counts.all()}
 
-        tree_data.append({
-            "id": str(dept.id),
-            "organization_id": str(dept.organization_id),
-            "parent_id": str(dept.parent_id) if dept.parent_id else None,
-            "name": dept.name,
-            "path": dept.path,
-            "sort_order": dept.sort_order,
-            "has_children": has_children,
-            "member_count": 0,
-        })
+        for dept in depts:
+            has_children = child_count_map.get(str(dept.id), 0) > 0
+            tree_data.append({
+                "id": str(dept.id),
+                "organization_id": str(dept.organization_id),
+                "parent_id": str(dept.parent_id) if dept.parent_id else None,
+                "name": dept.name,
+                "path": dept.path,
+                "sort_order": dept.sort_order,
+                "has_children": has_children,
+                "member_count": 0,
+            })
 
     return APIResponse(data={
         "data": tree_data,
