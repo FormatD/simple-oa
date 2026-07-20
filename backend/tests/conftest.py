@@ -1,5 +1,22 @@
 """Test fixtures and configuration for Simple OA backend tests."""
+
 from __future__ import annotations
+
+# Patch Uuid.bind_processor to handle strings from SQLite
+import uuid as _patched_uuid
+from sqlalchemy.types import Uuid as _patched_uid_type
+_orig_bind = _patched_uid_type.bind_processor
+def _patched_bind(self, dialect):
+    proc = _orig_bind(self, dialect)
+    if proc is None:
+        return None
+    def safe(value):
+        if value is not None and isinstance(value, str):
+            return value
+        return proc(value)
+    return safe
+_patched_uid_type.bind_processor = _patched_bind
+
 
 import asyncio
 import json
